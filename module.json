@@ -1,0 +1,26 @@
+{
+  "id": "pf2e-line-template-fix",
+  "title": "PF2e Line Template Fix",
+  "description": "Исправляет подсветку клеток для шаблона прямой (line/ray) в системе pf2e: клетки определяются обходом сетки вдоль центральной линии, длина считается по правилам передвижения (диагонали 5-10-5), как на официальной диаграмме Paizo.",
+  "version": "0.3.0",
+  "compatibility": {
+    "minimum": "13",
+    "verified": "13"
+  },
+  "esmodules": [
+    "scripts/main.mjs"
+  ],
+  "relationships": {
+    "requires": [
+      { "id": "lib-wrapper", "type": "module" }
+    ]
+  },
+  "authors": [
+    { "name": "def-gu", "url": "https://github.com/def-gu" }
+  ],
+  "url": "https://github.com/def-gu/pf2e-line-template-fix",
+  "bugs": "https://github.com/def-gu/pf2e-line-template-fix/issues",
+  "license": "LICENSE",
+  "manifest": "https://github.com/def-gu/pf2e-line-template-fix/releases/latest/download/module.json",
+  "download": "https://github.com/def-gu/pf2e-line-template-fix/releases/download/v0.3.0/module.zip"
+}
