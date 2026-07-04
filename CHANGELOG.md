@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-07-04
+
 ### Added
 
 - The lib-wrapper warning is translated to English and Russian.
@@ -20,5 +22,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A half-cell tolerance keeps the last corner cell of hand-stretched lines.
 - Directions close to a diagonal snap to the exact 45° multiple.
 
-[Unreleased]: https://github.com/def-gu/pf2e-line-template-fix/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/def-gu/pf2e-line-template-fix/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/def-gu/pf2e-line-template-fix/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/def-gu/pf2e-line-template-fix/releases/tag/v0.3.0
