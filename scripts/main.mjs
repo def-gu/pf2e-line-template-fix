@@ -19,8 +19,8 @@ Hooks.once("setup", () => {
   }
 });
 
-// Перехватываем только луч шириной в одну клетку на квадратной сетке (прямая pf2e);
-// всё прочее (circle/cone уже исправлены системой, rect, гексы, широкие лучи) — ядру.
+// Intercept only a one-cell-wide ray on a square grid (the pf2e line); everything
+// else (circle/cone already fixed by the system, rect, hexes, wide rays) goes to core.
 function lineHighlightWrapper(wrapped, ...args) {
   const doc = this.document;
   if (doc.t !== "ray" || !canvas.grid.isSquare) return wrapped(...args);
