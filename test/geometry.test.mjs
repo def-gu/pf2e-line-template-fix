@@ -6,7 +6,7 @@ const S = 100;
 const walk = (args) => lineWalkCells({ size: S, feetPerCell: 5, x: 0, y: 0, ...args }).map((c) => `${c.col},${c.row}`).join(" ");
 const deg = (rows, cols) => (Math.atan2(rows, cols) * 180) / Math.PI;
 
-// Эталоны пользователя (0-based, y вниз; в оригинале 1-based с y вверх — зеркально).
+// User-provided reference patterns (0-based, y down; the originals are 1-based with y up, mirrored).
 
 test("user pattern 5x3, 30 ft: stair 2-2-1, one cell per column", () => {
   assert.equal(walk({ direction: deg(3, 5), feetTotal: 30 }), "0,0 1,0 2,1 3,1 4,2");
@@ -28,7 +28,7 @@ test("user pattern 10x5, 60 ft: pairs", () => {
   assert.equal(walk({ direction: deg(5, 10), feetTotal: 60 }), "0,0 1,0 2,1 3,1 4,2 5,2 6,3 7,3 8,4 9,4");
 });
 
-// Ручное растяжение: евклидова длина 29.15 вместо книжных 30 — угловая клетка не срезается.
+// Hand-stretched ray: Euclidean length 29.15 instead of the book 30 must not cut the corner cell.
 test("hand-dragged 5x3 keeps the corner cell", () => {
   assert.equal(walk({ direction: deg(3, 5), feetTotal: Math.hypot(5, 3) * 5 }), "0,0 1,0 2,1 3,1 4,2");
 });
@@ -41,7 +41,7 @@ test("orthogonal from edge midpoint: same row", () => {
   assert.equal(walk({ y: 50, direction: 0, feetTotal: 30 }), "0,0 1,0 2,0 3,0 4,0 5,0");
 });
 
-// Движение позволяет только 4 диагональные клетки: 5+5+10+5=25, пятая стоила бы 35.
+// Movement affords only 4 diagonal cells: 5+5+10+5=25, the fifth would cost 35.
 test("45 degrees, 30 ft: four diagonal cells", () => {
   assert.equal(walk({ direction: 45, feetTotal: 30 }), "0,0 1,1 2,2 3,3");
 });
