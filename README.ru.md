@@ -1,5 +1,7 @@
 # PF2e Line Template Fix
 
+[English](README.md) | [Русский](README.ru.md)
+
 Модуль для [Foundry VTT](https://foundryvtt.com/) и системы [pf2e](https://github.com/foundryvtt/pf2e): исправляет подсветку клеток у шаблона прямой (line/ray) на квадратной сетке.
 
 ## Проблема
