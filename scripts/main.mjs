@@ -4,18 +4,18 @@ const MODULE_ID = "pf2e-line-template-fix";
 
 Hooks.once("setup", () => {
   if (game.system.id !== "pf2e") {
-    console.warn(`${MODULE_ID}: система не pf2e (${game.system.id}) — модуль бездействует.`);
+    console.warn(`${MODULE_ID}: system is not pf2e (${game.system.id}), module stays idle.`);
     return;
   }
   if (!game.modules.get("lib-wrapper")?.active) {
-    ui.notifications?.error(`${MODULE_ID}: требуется активный lib-wrapper.`);
+    ui.notifications?.error(`${MODULE_ID}: ${game.i18n.localize("PF2ELINEFIX.LibWrapperRequired")}`);
     return;
   }
   const target = "CONFIG.MeasuredTemplate.objectClass.prototype._getGridHighlightPositions";
   try {
     libWrapper.register(MODULE_ID, target, lineHighlightWrapper, "MIXED");
   } catch (err) {
-    console.error(`${MODULE_ID}: не удалось зарегистрировать обёртку`, err);
+    console.error(`${MODULE_ID}: failed to register the wrapper`, err);
   }
 });
 
@@ -29,7 +29,7 @@ function lineHighlightWrapper(wrapped, ...args) {
   try {
     return computeLinePositions(this);
   } catch (err) {
-    console.error(`${MODULE_ID}: ошибка в computeLinePositions, откат к ядру`, err);
+    console.error(`${MODULE_ID}: computeLinePositions failed, falling back to core`, err);
     return wrapped(...args);
   }
 }
