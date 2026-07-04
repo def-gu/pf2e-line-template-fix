@@ -1,7 +1,7 @@
 {
   "id": "pf2e-line-template-fix",
   "title": "PF2e Line Template Fix",
-  "description": "Исправляет подсветку клеток для шаблона прямой (line/ray) в системе pf2e: клетки определяются обходом сетки вдоль центральной линии, длина считается по правилам передвижения (диагонали 5-10-5), как на официальной диаграмме Paizo.",
+  "description": "Fixes grid highlighting for the line (ray) template in the pf2e system: cells are picked by walking the grid along the center line, length follows the 5-10-5 diagonal movement rules, matching the official Paizo diagram.",
   "version": "0.3.0",
   "compatibility": {
     "minimum": "13",
