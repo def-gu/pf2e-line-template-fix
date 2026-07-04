@@ -10,13 +10,31 @@
   "esmodules": [
     "scripts/main.mjs"
   ],
+  "languages": [
+    {
+      "lang": "en",
+      "name": "English",
+      "path": "lang/en.json"
+    },
+    {
+      "lang": "ru",
+      "name": "Русский",
+      "path": "lang/ru.json"
+    }
+  ],
   "relationships": {
     "requires": [
-      { "id": "lib-wrapper", "type": "module" }
+      {
+        "id": "lib-wrapper",
+        "type": "module"
+      }
     ]
   },
   "authors": [
-    { "name": "def-gu", "url": "https://github.com/def-gu" }
+    {
+      "name": "def-gu",
+      "url": "https://github.com/def-gu"
+    }
   ],
   "url": "https://github.com/def-gu/pf2e-line-template-fix",
   "bugs": "https://github.com/def-gu/pf2e-line-template-fix/issues",
