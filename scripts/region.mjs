@@ -17,6 +17,9 @@ function coverageWrapper(moduleId, wrapped, ...args) {
     if (shape.type === "circle") {
       return circleCoverageOffsets(shape);
     }
+    if (shape.type === "cone") {
+      return coneCoverageOffsets(shape);
+    }
   } catch (err) {
     console.error(`${moduleId}: coverage failed, falling back to core`, err);
     return wrapped(...args);
@@ -59,6 +62,49 @@ function lineCoverageOffsets(shape) {
   });
   // GridOffset2D is { i: row, j: col }.
   return cells.map((c) => ({ i: c.row, j: c.col }));
+}
+
+const norm360 = (a) => ((a % 360) + 360) % 360;
+
+// A cone covers cells within its radius (5-10-5) that also fall inside its angular
+// wedge. The apex is nudged half a cell toward the firing direction on each axis
+// the origin sits mid-cell on, so an edge- or center-anchored cone stays symmetric.
+function coneCoverageOffsets(shape) {
+  const grid = canvas.grid;
+  const size = grid.size;
+  const radiusCells = shape.radius / size;
+  const direction = shape.rotation ?? 0;
+  const half = (shape.angle ?? 90) / 2;
+  const minA = norm360(direction - half);
+  const maxA = norm360(direction + half);
+  const within = (v) => {
+    v = norm360(v);
+    return minA < maxA ? v >= minA && v <= maxA : v >= minA || v <= maxA;
+  };
+
+  // Screen-space Y grows downward, hence the inverted sign on the y nudge.
+  const dir = norm360(direction >= 0 ? 360 - direction : -direction);
+  const xOff = shape.x % size !== 0 ? Math.sign(Math.round(Math.cos((dir * Math.PI) / 180) * 100)) / 2 : 0;
+  const yOff = shape.y % size !== 0 ? -Math.sign(Math.round(Math.sin((dir * Math.PI) / 180) * 100)) / 2 : 0;
+  const apex = { x: shape.x + xOff * size, y: shape.y + yOff * size };
+
+  const o = grid.getOffset(apex);
+  const span = Math.ceil(radiusCells) + 1;
+  const offsets = [];
+  for (let i = o.i - span; i <= o.i + span; i++) {
+    for (let j = o.j - span; j <= o.j + span; j++) {
+      const c = grid.getCenterPoint({ i, j });
+      const dx = c.x - apex.x;
+      const dy = c.y - apex.y;
+      if (gridDistanceCells(dx, dy, size) > radiusCells + 1e-6) continue;
+      if (dx === 0 && dy === 0) {
+        offsets.push({ i, j });
+        continue;
+      }
+      if (within((Math.atan2(dy, dx) * 180) / Math.PI)) offsets.push({ i, j });
+    }
+  }
+  return offsets;
 }
 
 // Present only on Foundry v14+ (the Region coverage path). No-op where absent.
