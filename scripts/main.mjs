@@ -1,4 +1,5 @@
 import { registerMeasuredTemplateFix } from "./measured-template.mjs";
+import { registerRegionCoverageFix } from "./region.mjs";
 
 const MODULE_ID = "pf2e-line-template-fix";
 
@@ -13,6 +14,7 @@ Hooks.once("setup", () => {
   }
   try {
     registerMeasuredTemplateFix(MODULE_ID);
+    registerRegionCoverageFix(MODULE_ID);
   } catch (err) {
     console.error(`${MODULE_ID}: failed to register the wrapper`, err);
   }
