@@ -46,7 +46,20 @@ function circleCoverageOffsets(shape) {
       }
     }
   }
-  return offsets;
+  return applyLineOfEffect(origin, offsets);
+}
+
+// A wall between the origin and a cell center cuts off line of effect: the cell is
+// in range but unreachable, so it is dropped from coverage.
+function applyLineOfEffect(origin, offsets) {
+  if (!canvas.ready) return offsets;
+  const backend = CONFIG.Canvas?.polygonBackends?.move;
+  if (!backend) return offsets;
+  const grid = canvas.grid;
+  return offsets.filter((o) => {
+    const c = grid.getCenterPoint(o);
+    return !backend.testCollision(origin, c, { type: "move", mode: "any" });
+  });
 }
 
 // Foundry line shapes carry length/width in pixels; the walk works in scene units.
@@ -61,7 +74,8 @@ function lineCoverageOffsets(shape) {
     feetPerCell: grid.distance
   });
   // GridOffset2D is { i: row, j: col }.
-  return cells.map((c) => ({ i: c.row, j: c.col }));
+  const offsets = cells.map((c) => ({ i: c.row, j: c.col }));
+  return applyLineOfEffect({ x: shape.x, y: shape.y }, offsets);
 }
 
 const norm360 = (a) => ((a % 360) + 360) % 360;
@@ -104,7 +118,7 @@ function coneCoverageOffsets(shape) {
       if (within((Math.atan2(dy, dx) * 180) / Math.PI)) offsets.push({ i, j });
     }
   }
-  return offsets;
+  return applyLineOfEffect(apex, offsets);
 }
 
 // Present only on Foundry v14+ (the Region coverage path). No-op where absent.
