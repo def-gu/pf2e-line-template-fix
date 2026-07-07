@@ -1,4 +1,4 @@
-import { lineWalkCells } from "./geometry.mjs";
+import { registerMeasuredTemplateFix } from "./measured-template.mjs";
 
 const MODULE_ID = "pf2e-line-template-fix";
 
@@ -11,41 +11,9 @@ Hooks.once("setup", () => {
     ui.notifications?.error(`${MODULE_ID}: ${game.i18n.localize("PF2ELINEFIX.LibWrapperRequired")}`);
     return;
   }
-  const target = "CONFIG.MeasuredTemplate.objectClass.prototype._getGridHighlightPositions";
   try {
-    libWrapper.register(MODULE_ID, target, lineHighlightWrapper, "MIXED");
+    registerMeasuredTemplateFix(MODULE_ID);
   } catch (err) {
     console.error(`${MODULE_ID}: failed to register the wrapper`, err);
   }
 });
-
-// Intercept only a one-cell-wide ray on a square grid (the pf2e line); everything
-// else (circle/cone already fixed by the system, rect, hexes, wide rays) goes to core.
-function lineHighlightWrapper(wrapped, ...args) {
-  const doc = this.document;
-  if (doc.t !== "ray" || !canvas.grid.isSquare) return wrapped(...args);
-  const feetPerCell = canvas.grid.distance;
-  if ((doc.width ?? feetPerCell) > feetPerCell * 1.001) return wrapped(...args);
-  try {
-    return computeLinePositions(this);
-  } catch (err) {
-    console.error(`${MODULE_ID}: computeLinePositions failed, falling back to core`, err);
-    return wrapped(...args);
-  }
-}
-
-function computeLinePositions(template) {
-  const grid = canvas.grid;
-  const doc = template.document;
-  const cells = lineWalkCells({
-    x: doc.x,
-    y: doc.y,
-    direction: doc.direction ?? 0,
-    size: grid.size,
-    feetTotal: doc.distance,
-    feetPerCell: grid.distance
-  });
-  return cells.map((c) =>
-    grid.getTopLeftPoint({ x: (c.col + 0.5) * grid.size, y: (c.row + 0.5) * grid.size })
-  );
-}
