@@ -73,3 +73,22 @@ export function lineWalkCells({ x, y, direction, size, feetTotal, feetPerCell })
   }
   return cells;
 }
+
+/**
+ * PF2e square-grid distance, in cells, between two canvas points. Mirrors the
+ * system's own measure: sort the per-axis cell spans, then the diagonal part
+ * costs 1.5 per step and floors — the 5-10-5 rule. Area templates carry no reach
+ * reduction, so this is the plain 2D case.
+ *
+ * @param {number} dx point-to-point delta on x (px)
+ * @param {number} dy point-to-point delta on y (px)
+ * @param {number} size cell size (px)
+ * @returns {number} distance in whole cells
+ */
+export function gridDistanceCells(dx, dy, size) {
+  const a = Math.ceil(Math.abs(dx) / size);
+  const b = Math.ceil(Math.abs(dy) / size);
+  const diagonal = Math.min(a, b);
+  const straight = Math.max(a, b) - diagonal;
+  return Math.floor(diagonal * 1.5 + straight);
+}
