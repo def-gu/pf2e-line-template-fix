@@ -6,25 +6,41 @@ import { lineWalkCells, gridDistanceCells } from "./geometry.mjs";
 // 5-10-5 movement rules. Count cells by those rules instead; unhandled shapes and
 // non-square grids go to core.
 function coverageWrapper(moduleId, wrapped, ...args) {
-  const doc = this.document;
-  const shape = doc.shapes?.length === 1 ? doc.shapes[0] : null;
-  if (!shape || !canvas.grid.isSquare) return wrapped(...args);
+  const shapes = this.document.shapes ?? [];
+  // A region holds an array of shapes; take over only when every shape is one we
+  // count ourselves. Mixed, holed, or unsupported shapes go to core as a whole.
+  if (!canvas.grid.isSquare || shapes.length === 0 || !shapes.every(isSupportedShape)) {
+    return wrapped(...args);
+  }
   try {
-    if (shape.type === "line") {
-      if ((shape.width ?? canvas.grid.size) > canvas.grid.size * 1.001) return wrapped(...args);
-      return lineCoverageOffsets(shape);
+    const seen = new Set();
+    const offsets = [];
+    for (const shape of shapes) {
+      for (const o of shapeCoverageOffsets(shape)) {
+        const key = `${o.i},${o.j}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          offsets.push(o);
+        }
+      }
     }
-    if (shape.type === "circle") {
-      return circleCoverageOffsets(shape);
-    }
-    if (shape.type === "cone") {
-      return coneCoverageOffsets(shape);
-    }
+    return offsets;
   } catch (err) {
     console.error(`${moduleId}: coverage failed, falling back to core`, err);
     return wrapped(...args);
   }
-  return wrapped(...args);
+}
+
+function isSupportedShape(shape) {
+  if (shape.hole) return false;
+  if (shape.type === "line") return (shape.width ?? canvas.grid.size) <= canvas.grid.size * 1.001;
+  return shape.type === "circle" || shape.type === "cone";
+}
+
+function shapeCoverageOffsets(shape) {
+  if (shape.type === "line") return lineCoverageOffsets(shape);
+  if (shape.type === "circle") return circleCoverageOffsets(shape);
+  return coneCoverageOffsets(shape);
 }
 
 // A burst covers every cell within its radius counted by the 5-10-5 rule, measured
