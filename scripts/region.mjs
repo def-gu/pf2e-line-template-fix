@@ -1,14 +1,12 @@
 import { lineWalkCells, gridDistanceCells } from "./geometry.mjs";
 
-// On Foundry v14, pf2e renders effect areas as Regions with coverage highlighting
-// instead of measured templates. The core coverage algorithm fills a cell whenever
-// its center lands inside the shape polygon — a geometric test that ignores the
-// 5-10-5 movement rules. Count cells by those rules instead; unhandled shapes and
-// non-square grids go to core.
+const norm360 = (a) => ((a % 360) + 360) % 360;
+
+// pf2e renders v14 effect areas as Regions with coverage highlighting, whose core
+// algorithm fills a cell when its center lands in the shape polygon — a geometric
+// test blind to the 5-10-5 rule. Recount supported shapes; hand the rest to core.
 function coverageWrapper(moduleId, wrapped, ...args) {
   const shapes = this.document.shapes ?? [];
-  // A region holds an array of shapes; take over only when every shape is one we
-  // count ourselves. Mixed, holed, or unsupported shapes go to core as a whole.
   if (!canvas.grid.isSquare || shapes.length === 0 || !shapes.every(isSupportedShape)) {
     return wrapped(...args);
   }
@@ -16,7 +14,7 @@ function coverageWrapper(moduleId, wrapped, ...args) {
     const seen = new Set();
     const offsets = [];
     for (const shape of shapes) {
-      for (const o of shapeCoverageOffsets(shape)) {
+      for (const o of shapeOffsets(shape)) {
         const key = `${o.i},${o.j}`;
         if (!seen.has(key)) {
           seen.add(key);
@@ -33,57 +31,125 @@ function coverageWrapper(moduleId, wrapped, ...args) {
 
 function isSupportedShape(shape) {
   if (shape.hole) return false;
-  if (shape.type === "line") return (shape.width ?? canvas.grid.size) <= canvas.grid.size * 1.001;
-  if (shape.type === "emanation") return shape.base?.type === "token";
-  return shape.type === "circle" || shape.type === "cone" || shape.type === "ring";
-}
-
-function shapeCoverageOffsets(shape) {
-  if (shape.type === "line") return lineCoverageOffsets(shape);
-  if (shape.type === "circle") return circleCoverageOffsets(shape);
-  if (shape.type === "ring") return ringCoverageOffsets(shape);
-  if (shape.type === "emanation") return emanationCoverageOffsets(shape);
-  return coneCoverageOffsets(shape);
-}
-
-// A burst covers every cell within its radius counted by the 5-10-5 rule, measured
-// from the origin corner to each cell center.
-function circleCoverageOffsets(shape) {
-  const grid = canvas.grid;
-  const size = grid.size;
-  const radiusCells = shape.radius / size;
-  const origin = { x: shape.x, y: shape.y };
-  const o = grid.getOffset(origin);
-  const span = Math.ceil(radiusCells) + 1;
-
-  const offsets = [];
-  for (let i = o.i - span; i <= o.i + span; i++) {
-    for (let j = o.j - span; j <= o.j + span; j++) {
-      const c = grid.getCenterPoint({ i, j });
-      if (gridDistanceCells(c.x - origin.x, c.y - origin.y, size) <= radiusCells + 1e-6) {
-        offsets.push({ i, j });
-      }
-    }
+  switch (shape.type) {
+    case "circle":
+    case "cone":
+    case "ring":
+      return true;
+    case "line":
+      return (shape.width ?? canvas.grid.size) <= canvas.grid.size * 1.001;
+    case "emanation":
+      return shape.base?.type === "token";
+    default:
+      return false;
   }
-  return applyLineOfEffect(origin, offsets);
 }
 
-// A wall between the origin and a cell center cuts off line of effect: the cell is
-// in range but unreachable, so it is dropped from coverage.
-function applyLineOfEffect(origin, offsets) {
+function shapeOffsets(shape) {
+  switch (shape.type) {
+    case "circle":
+      return circleOffsets(shape);
+    case "cone":
+      return coneOffsets(shape);
+    case "ring":
+      return ringOffsets(shape);
+    case "emanation":
+      return emanationOffsets(shape);
+    default:
+      return lineOffsets(shape);
+  }
+}
+
+// A wall between the origin and a cell center cuts off line of effect: keep only the
+// cells still reachable.
+function withLineOfEffect(origin, offsets) {
   if (!canvas.ready) return offsets;
   const backend = CONFIG.Canvas?.polygonBackends?.move;
   if (!backend) return offsets;
   const grid = canvas.grid;
-  return offsets.filter((o) => {
-    const c = grid.getCenterPoint(o);
-    return !backend.testCollision(origin, c, { type: "move", mode: "any" });
+  return offsets.filter((o) => !backend.testCollision(origin, grid.getCenterPoint(o), { type: "move", mode: "any" }));
+}
+
+// Test every cell in a square block around `search`, keep those `covers` accepts,
+// then drop the ones walled off from `origin`. Shared by all radial shapes.
+function collect(search, span, origin, covers) {
+  const grid = canvas.grid;
+  const o = grid.getOffset(search);
+  const offsets = [];
+  for (let i = o.i - span; i <= o.i + span; i++) {
+    for (let j = o.j - span; j <= o.j + span; j++) {
+      if (covers(grid.getCenterPoint({ i, j }), i, j)) offsets.push({ i, j });
+    }
+  }
+  return withLineOfEffect(origin, offsets);
+}
+
+function circleOffsets(shape) {
+  const size = canvas.grid.size;
+  const radius = shape.radius / size;
+  const origin = { x: shape.x, y: shape.y };
+  return collect(origin, Math.ceil(radius) + 1, origin,
+    (c) => gridDistanceCells(c.x - origin.x, c.y - origin.y, size) <= radius + 1e-6);
+}
+
+function ringOffsets(shape) {
+  const size = canvas.grid.size;
+  const outer = (shape.radius + (shape.outerWidth ?? 0)) / size;
+  const inner = (shape.radius - (shape.innerWidth ?? 0)) / size;
+  const origin = { x: shape.x, y: shape.y };
+  return collect(origin, Math.ceil(outer) + 1, origin, (c) => {
+    const d = gridDistanceCells(c.x - origin.x, c.y - origin.y, size);
+    return d <= outer + 1e-6 && d > inner;
   });
 }
 
-// Foundry line shapes carry length/width in pixels; the walk works in scene units.
-function lineCoverageOffsets(shape) {
+function coneOffsets(shape) {
+  const size = canvas.grid.size;
+  const radius = shape.radius / size;
+  const direction = shape.rotation ?? 0;
+  const half = (shape.angle ?? 90) / 2;
+  const min = norm360(direction - half);
+  const max = norm360(direction + half);
+  const within = (a) => ((a = norm360(a)), min < max ? a >= min && a <= max : a >= min || a <= max);
+
+  // Nudge the apex half a cell toward the firing direction on each axis the origin
+  // sits mid-cell on; screen-space Y grows downward, hence the inverted y sign.
+  const dir = norm360(direction >= 0 ? 360 - direction : -direction);
+  const xOff = shape.x % size !== 0 ? Math.sign(Math.round(Math.cos((dir * Math.PI) / 180) * 100)) / 2 : 0;
+  const yOff = shape.y % size !== 0 ? -Math.sign(Math.round(Math.sin((dir * Math.PI) / 180) * 100)) / 2 : 0;
+  const apex = { x: shape.x + xOff * size, y: shape.y + yOff * size };
+
+  return collect(apex, Math.ceil(radius) + 1, apex, (c) => {
+    const dx = c.x - apex.x;
+    const dy = c.y - apex.y;
+    if (gridDistanceCells(dx, dy, size) > radius + 1e-6) return false;
+    return (dx === 0 && dy === 0) || within((Math.atan2(dy, dx) * 180) / Math.PI);
+  });
+}
+
+// Distance runs from the caster's whole footprint (baked into `base`), so the
+// predicate works on each cell's offset, not just its center.
+function emanationOffsets(shape) {
+  const size = canvas.grid.size;
+  const radius = shape.radius / size;
+  const base = shape.base;
+  const cMin = Math.round(base.x / size);
+  const rMin = Math.round(base.y / size);
+  const cMax = cMin + Math.max(1, Math.round(base.width)) - 1;
+  const rMax = rMin + Math.max(1, Math.round(base.height)) - 1;
+  const center = { x: ((cMin + cMax + 1) / 2) * size, y: ((rMin + rMax + 1) / 2) * size };
+  const span = Math.ceil(radius) + Math.max(cMax - cMin, rMax - rMin) + 1;
+  return collect(center, span, center, (c, i, j) => {
+    const dCol = Math.max(0, cMin - j, j - cMax);
+    const dRow = Math.max(0, rMin - i, i - rMax);
+    return gridDistanceCells(dCol * size, dRow * size, size) <= radius + 1e-6;
+  });
+}
+
+// The line is generative, not a search: walk the ray cell by cell (see geometry).
+function lineOffsets(shape) {
   const grid = canvas.grid;
+  const origin = { x: shape.x, y: shape.y };
   const cells = lineWalkCells({
     x: shape.x,
     y: shape.y,
@@ -93,103 +159,7 @@ function lineCoverageOffsets(shape) {
     feetPerCell: grid.distance
   });
   // GridOffset2D is { i: row, j: col }.
-  const offsets = cells.map((c) => ({ i: c.row, j: c.col }));
-  return applyLineOfEffect({ x: shape.x, y: shape.y }, offsets);
-}
-
-// A ring is a burst with its middle cut out: cells whose distance falls in the band
-// between the inner and outer edges (radius minus/plus the respective width).
-function ringCoverageOffsets(shape) {
-  const grid = canvas.grid;
-  const size = grid.size;
-  const outerCells = (shape.radius + (shape.outerWidth ?? 0)) / size;
-  const innerCells = (shape.radius - (shape.innerWidth ?? 0)) / size;
-  const origin = { x: shape.x, y: shape.y };
-  const o = grid.getOffset(origin);
-  const span = Math.ceil(outerCells) + 1;
-
-  const offsets = [];
-  for (let i = o.i - span; i <= o.i + span; i++) {
-    for (let j = o.j - span; j <= o.j + span; j++) {
-      const c = grid.getCenterPoint({ i, j });
-      const d = gridDistanceCells(c.x - origin.x, c.y - origin.y, size);
-      if (d <= outerCells + 1e-6 && d > innerCells) offsets.push({ i, j });
-    }
-  }
-  return applyLineOfEffect(origin, offsets);
-}
-
-const norm360 = (a) => ((a % 360) + 360) % 360;
-
-// A cone covers cells within its radius (5-10-5) that also fall inside its angular
-// wedge. The apex is nudged half a cell toward the firing direction on each axis
-// the origin sits mid-cell on, so an edge- or center-anchored cone stays symmetric.
-function coneCoverageOffsets(shape) {
-  const grid = canvas.grid;
-  const size = grid.size;
-  const radiusCells = shape.radius / size;
-  const direction = shape.rotation ?? 0;
-  const half = (shape.angle ?? 90) / 2;
-  const minA = norm360(direction - half);
-  const maxA = norm360(direction + half);
-  const within = (v) => {
-    v = norm360(v);
-    return minA < maxA ? v >= minA && v <= maxA : v >= minA || v <= maxA;
-  };
-
-  // Screen-space Y grows downward, hence the inverted sign on the y nudge.
-  const dir = norm360(direction >= 0 ? 360 - direction : -direction);
-  const xOff = shape.x % size !== 0 ? Math.sign(Math.round(Math.cos((dir * Math.PI) / 180) * 100)) / 2 : 0;
-  const yOff = shape.y % size !== 0 ? -Math.sign(Math.round(Math.sin((dir * Math.PI) / 180) * 100)) / 2 : 0;
-  const apex = { x: shape.x + xOff * size, y: shape.y + yOff * size };
-
-  const o = grid.getOffset(apex);
-  const span = Math.ceil(radiusCells) + 1;
-  const offsets = [];
-  for (let i = o.i - span; i <= o.i + span; i++) {
-    for (let j = o.j - span; j <= o.j + span; j++) {
-      const c = grid.getCenterPoint({ i, j });
-      const dx = c.x - apex.x;
-      const dy = c.y - apex.y;
-      if (gridDistanceCells(dx, dy, size) > radiusCells + 1e-6) continue;
-      if (dx === 0 && dy === 0) {
-        offsets.push({ i, j });
-        continue;
-      }
-      if (within((Math.atan2(dy, dx) * 180) / Math.PI)) offsets.push({ i, j });
-    }
-  }
-  return applyLineOfEffect(apex, offsets);
-}
-
-// An emanation reaches out from the caster's whole footprint (baked into `base`), so
-// distance is measured from the nearest occupied cell rather than a single point.
-function emanationCoverageOffsets(shape) {
-  const grid = canvas.grid;
-  const size = grid.size;
-  const base = shape.base;
-  const radiusCells = shape.radius / size;
-  const colMin = Math.round(base.x / size);
-  const rowMin = Math.round(base.y / size);
-  const colMax = colMin + Math.max(1, Math.round(base.width)) - 1;
-  const rowMax = rowMin + Math.max(1, Math.round(base.height)) - 1;
-  const origin = {
-    x: ((colMin + colMax + 1) / 2) * size,
-    y: ((rowMin + rowMax + 1) / 2) * size
-  };
-  const span = Math.ceil(radiusCells) + 1;
-
-  const offsets = [];
-  for (let i = rowMin - span; i <= rowMax + span; i++) {
-    for (let j = colMin - span; j <= colMax + span; j++) {
-      const dCol = Math.max(0, colMin - j, j - colMax);
-      const dRow = Math.max(0, rowMin - i, i - rowMax);
-      if (gridDistanceCells(dCol * size, dRow * size, size) <= radiusCells + 1e-6) {
-        offsets.push({ i, j });
-      }
-    }
-  }
-  return applyLineOfEffect(origin, offsets);
+  return withLineOfEffect(origin, cells.map((c) => ({ i: c.row, j: c.col })));
 }
 
 // Present only on Foundry v14+ (the Region coverage path). No-op where absent.
