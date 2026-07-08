@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- The module now works on Foundry v14.
+- On Foundry v14 the line template is fixed for pf2e effect areas drawn as regions.
+- Until the pf2e system corrects it, the circle, cone, ring and emanation region areas follow the rules on v14.
+- On v14 a wall cuts off the cells a region area cannot reach.
+- On v14 cones and lines snap to their allowed directions as you aim them.
+
 ## [0.4.0] - 2026-07-04
 
 ### Added
