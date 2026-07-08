@@ -34,6 +34,7 @@ function coverageWrapper(moduleId, wrapped, ...args) {
 function isSupportedShape(shape) {
   if (shape.hole) return false;
   if (shape.type === "line") return (shape.width ?? canvas.grid.size) <= canvas.grid.size * 1.001;
+  if (shape.type === "emanation") return shape.base?.type === "token";
   return shape.type === "circle" || shape.type === "cone" || shape.type === "ring";
 }
 
@@ -41,6 +42,7 @@ function shapeCoverageOffsets(shape) {
   if (shape.type === "line") return lineCoverageOffsets(shape);
   if (shape.type === "circle") return circleCoverageOffsets(shape);
   if (shape.type === "ring") return ringCoverageOffsets(shape);
+  if (shape.type === "emanation") return emanationCoverageOffsets(shape);
   return coneCoverageOffsets(shape);
 }
 
@@ -158,6 +160,36 @@ function coneCoverageOffsets(shape) {
     }
   }
   return applyLineOfEffect(apex, offsets);
+}
+
+// An emanation reaches out from the caster's whole footprint (baked into `base`), so
+// distance is measured from the nearest occupied cell rather than a single point.
+function emanationCoverageOffsets(shape) {
+  const grid = canvas.grid;
+  const size = grid.size;
+  const base = shape.base;
+  const radiusCells = shape.radius / size;
+  const colMin = Math.round(base.x / size);
+  const rowMin = Math.round(base.y / size);
+  const colMax = colMin + Math.max(1, Math.round(base.width)) - 1;
+  const rowMax = rowMin + Math.max(1, Math.round(base.height)) - 1;
+  const origin = {
+    x: ((colMin + colMax + 1) / 2) * size,
+    y: ((rowMin + rowMax + 1) / 2) * size
+  };
+  const span = Math.ceil(radiusCells) + 1;
+
+  const offsets = [];
+  for (let i = rowMin - span; i <= rowMax + span; i++) {
+    for (let j = colMin - span; j <= colMax + span; j++) {
+      const dCol = Math.max(0, colMin - j, j - colMax);
+      const dRow = Math.max(0, rowMin - i, i - rowMax);
+      if (gridDistanceCells(dCol * size, dRow * size, size) <= radiusCells + 1e-6) {
+        offsets.push({ i, j });
+      }
+    }
+  }
+  return applyLineOfEffect(origin, offsets);
 }
 
 // Present only on Foundry v14+ (the Region coverage path). No-op where absent.
