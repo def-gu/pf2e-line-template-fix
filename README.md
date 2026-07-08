@@ -17,9 +17,13 @@ Cells are picked by walking the grid along the center line (a thin Bresenham lin
 
 Only the one-cell-wide ray on a square grid is intercepted; circles, cones, rectangles, hexes and wide rays behave as before.
 
+## Foundry v14
+
+On Foundry v14 the pf2e system draws effect areas as regions and highlights the cells they cover. The line has the same problem there, and the module fixes it in the same way. Until the pf2e system corrects its own region highlighting, the module temporarily also fixes the region areas such as the circle and the cone so their cells follow the rules.
+
 ## Compatibility
 
-- Foundry VTT v13, the pf2e system.
+- Foundry VTT v13 and v14, the pf2e system.
 - Requires [libWrapper](https://github.com/ruipin/fvtt-lib-wrapper).
 
 ## Installation
