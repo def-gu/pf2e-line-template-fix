@@ -34,12 +34,13 @@ function coverageWrapper(moduleId, wrapped, ...args) {
 function isSupportedShape(shape) {
   if (shape.hole) return false;
   if (shape.type === "line") return (shape.width ?? canvas.grid.size) <= canvas.grid.size * 1.001;
-  return shape.type === "circle" || shape.type === "cone";
+  return shape.type === "circle" || shape.type === "cone" || shape.type === "ring";
 }
 
 function shapeCoverageOffsets(shape) {
   if (shape.type === "line") return lineCoverageOffsets(shape);
   if (shape.type === "circle") return circleCoverageOffsets(shape);
+  if (shape.type === "ring") return ringCoverageOffsets(shape);
   return coneCoverageOffsets(shape);
 }
 
@@ -92,6 +93,28 @@ function lineCoverageOffsets(shape) {
   // GridOffset2D is { i: row, j: col }.
   const offsets = cells.map((c) => ({ i: c.row, j: c.col }));
   return applyLineOfEffect({ x: shape.x, y: shape.y }, offsets);
+}
+
+// A ring is a burst with its middle cut out: cells whose distance falls in the band
+// between the inner and outer edges (radius minus/plus the respective width).
+function ringCoverageOffsets(shape) {
+  const grid = canvas.grid;
+  const size = grid.size;
+  const outerCells = (shape.radius + (shape.outerWidth ?? 0)) / size;
+  const innerCells = (shape.radius - (shape.innerWidth ?? 0)) / size;
+  const origin = { x: shape.x, y: shape.y };
+  const o = grid.getOffset(origin);
+  const span = Math.ceil(outerCells) + 1;
+
+  const offsets = [];
+  for (let i = o.i - span; i <= o.i + span; i++) {
+    for (let j = o.j - span; j <= o.j + span; j++) {
+      const c = grid.getCenterPoint({ i, j });
+      const d = gridDistanceCells(c.x - origin.x, c.y - origin.y, size);
+      if (d <= outerCells + 1e-6 && d > innerCells) offsets.push({ i, j });
+    }
+  }
+  return applyLineOfEffect(origin, offsets);
 }
 
 const norm360 = (a) => ((a % 360) + 360) % 360;
